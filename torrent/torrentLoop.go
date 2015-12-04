@@ -171,7 +171,7 @@ mainLoop:
 	return
 }
 
-func RunTorrent(flags *TorrentFlags, torrentFile string, quitChan chan os.Signal) (err error) {
+func RunTorrent(flags *TorrentFlags, torrentFile string, quitChan <-chan os.Signal) (err error) {
 	conChan, listenPort, err := ListenForPeerConnections(flags)
 	if err != nil {
 		log.Println("Could not listen for peers connection: ", err)
@@ -217,8 +217,9 @@ func RunTorrent(flags *TorrentFlags, torrentFile string, quitChan chan os.Signal
 			if flags.UseLPD {
 				lpd.StopAnnouncing(ts.M.InfoHash)
 			}
-			break
+			return nil
 		case <-quitChan:
+			log.Println("Got quit ctrl C")
 			go ts.Quit()
 		case <-ts.DoneDownloadChan:
 			//report to the hub that file is downloaded
