@@ -3,3 +3,4 @@
 Taipei-Torrent
 *.exe
 testdata/downloads/
+*.swp

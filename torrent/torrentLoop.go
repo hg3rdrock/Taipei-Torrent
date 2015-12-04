@@ -113,6 +113,10 @@ mainLoop:
 					t.DoTorrent()
 					doneChan <- t
 				}(ts)
+				select {
+				case <-ts.DoneDownloadChan:
+					//downloaded
+				}
 			}
 		case ts := <-doneChan:
 			delete(torrentSessions, ts.M.InfoHash)
@@ -165,6 +169,85 @@ mainLoop:
 		dhtNode.Stop()
 	}
 	return
+}
+
+func RunTorrent(flags *TorrentFlags, torrentFile string, quitChan chan os.Signal) (err error) {
+	conChan, listenPort, err := ListenForPeerConnections(flags)
+	if err != nil {
+		log.Println("Could not listen for peers connection: ", err)
+		return
+	}
+
+	doneChan := make(chan *TorrentSession, 1)
+
+	var dhtNode dht.DHT
+	if flags.UseDHT {
+		dhtNode = *startDHT(flags.Port)
+	}
+
+	ts, err := NewTorrentSession(flags, torrentFile, uint16(listenPort))
+	if err != nil {
+		log.Println("Failed to create torrent session: ", err)
+		return
+	}
+
+	lpd := &Announcer{}
+	if flags.UseLPD {
+		lpd, err = NewAnnouncer(uint16(listenPort))
+		if err != nil {
+			log.Println("Couldn't listen for Local Peer Discoveries: ", err)
+			flags.UseLPD = false
+		}
+	}
+
+	ts.dht = &dhtNode
+	if flags.UseLPD {
+		lpd.Announce(ts.M.InfoHash)
+	}
+	log.Printf("Starting torrent session for %s", ts.M.Info.Name)
+
+	go func() {
+		ts.DoTorrent()
+		doneChan <- ts
+	}()
+
+	for {
+		select {
+		case ts := <-doneChan:
+			if flags.UseLPD {
+				lpd.StopAnnouncing(ts.M.InfoHash)
+			}
+			break
+		case <-quitChan:
+			go ts.Quit()
+		case <-ts.DoneDownloadChan:
+			//report to the hub that file is downloaded
+		case c := <-conChan:
+			go ts.AcceptNewPeer(c)
+		case dhtPeers := <-dhtNode.PeersRequestResults:
+			for key, peers := range dhtPeers {
+				if string(key) != ts.M.InfoHash {
+					log.Printf("Received DHT peer for an unknown torrent session %x\n", []byte(key))
+				} else {
+					log.Printf("Received %d DHT peers for torrent session %x\n", len(peers), []byte(key))
+					for _, peer := range peers {
+						peer = dht.DecodePeerAddress(peer)
+						go ts.HintNewPeer(peer)
+					}
+				}
+			}
+		case announce := <-lpd.Announces:
+			hexhash, err := hex.DecodeString(announce.Infohash)
+			if err != nil {
+				log.Println("Err with hex-decoding:", err)
+			}
+			if string(hexhash) == ts.M.InfoHash {
+				log.Printf("Received LPD announce for ih %s", announce.Infohash)
+				go ts.HintNewPeer(announce.Peer)
+			}
+		}
+	}
+
 }
 
 func listenSigInt() chan os.Signal {

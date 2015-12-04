@@ -118,6 +118,7 @@ type TorrentSession struct {
 	flags                *TorrentFlags
 	M                    *MetaInfo
 	Session              SessionInfo
+	DoneDownloadChan     chan bool
 	ti                   *TrackerResponse
 	torrentHeader        []byte
 	fileStore            FileStore
@@ -154,6 +155,7 @@ func NewTorrentSession(flags *TorrentFlags, torrent string, listenPort uint16) (
 		chokePolicy:          &ClassicChokePolicy{},
 		chokePolicyHeartbeat: time.Tick(10 * time.Second),
 		execOnSeedingDone:    len(flags.ExecOnSeeding) == 0,
+		DoneDownloadChan:     make(chan bool),
 	}
 	fromMagnet := strings.HasPrefix(torrent, "magnet:")
 	t.M, err = GetMetaInfo(flags.Dial, torrent)
@@ -556,6 +558,7 @@ func (t *TorrentSession) DoTorrent() {
 
 	for {
 		if !t.execOnSeedingDone && t.goodPieces == t.totalPieces {
+			t.DoneDownloadChan <- true
 			t.execOnSeeding()
 			t.execOnSeedingDone = true
 		}
