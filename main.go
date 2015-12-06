@@ -1,6 +1,7 @@
 package main
 
 import (
+	//"bufio"
 	"flag"
 	"log"
 	"math"
@@ -113,7 +114,12 @@ func main() {
 	flag.Parse()
 
 	if *createTorrent != "" {
-		err := torrent.WriteMetaInfoBytes(*createTorrent, *createTracker, os.Stdout)
+		f, err := os.Create("/tmp/test.torrent")
+		if err != nil {
+			log.Fatal("failed to create test.torrent")
+		}
+		//err := torrent.WriteMetaInfoBytes(*createTorrent, *createTracker, os.Stdout)
+		err = torrent.WriteMetaInfoBytes(*createTorrent, *createTracker, f)
 		if err != nil {
 			log.Fatal("Could not create torrent file:", err)
 		}
@@ -162,7 +168,8 @@ func main() {
 	log.Println("Starting.")
 
 	quitChan := listenSigInt()
-	err = torrent.RunTorrent(torrentFlags, args[0], quitChan)
+	statusChan := make(chan int, 1)
+	err = torrent.RunTorrent(torrentFlags, args[0], quitChan, statusChan)
 	if err != nil {
 		log.Fatal("Could not run torrents", args, err)
 	}

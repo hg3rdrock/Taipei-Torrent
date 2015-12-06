@@ -9,6 +9,12 @@ import (
 	"os/signal"
 )
 
+const (
+	TORRENTBEGIN = iota
+	DOWNLOADED
+	ALLSET
+)
+
 type TorrentFlags struct {
 	Port                int
 	FileDir             string
@@ -171,7 +177,7 @@ mainLoop:
 	return
 }
 
-func RunTorrent(flags *TorrentFlags, torrentFile string, quitChan <-chan os.Signal) (err error) {
+func RunTorrent(flags *TorrentFlags, torrentFile string, quitChan <-chan os.Signal, statusChan chan<- int) (err error) {
 	conChan, listenPort, err := ListenForPeerConnections(flags)
 	if err != nil {
 		log.Println("Could not listen for peers connection: ", err)
@@ -217,12 +223,15 @@ func RunTorrent(flags *TorrentFlags, torrentFile string, quitChan <-chan os.Sign
 			if flags.UseLPD {
 				lpd.StopAnnouncing(ts.M.InfoHash)
 			}
+			statusChan <- ALLSET
 			return nil
 		case <-quitChan:
-			log.Println("Got quit ctrl C")
+			log.Println("Got quit signal")
 			go ts.Quit()
 		case <-ts.DoneDownloadChan:
 			//report to the hub that file is downloaded
+			statusChan <- DOWNLOADED
+			log.Println("finish file download")
 		case c := <-conChan:
 			go ts.AcceptNewPeer(c)
 		case dhtPeers := <-dhtNode.PeersRequestResults:
