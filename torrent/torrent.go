@@ -558,7 +558,6 @@ func (t *TorrentSession) DoTorrent() {
 
 	for {
 		if !t.execOnSeedingDone && t.goodPieces == t.totalPieces {
-			t.DoneDownloadChan <- true
 			t.execOnSeeding()
 			t.execOnSeedingDone = true
 		}
@@ -869,6 +868,8 @@ func (t *TorrentSession) RecordBlock(p *peerState, piece, begin, length uint32) 
 					t.fetchTrackerInfo("completed")
 				}
 				// TODO: Drop connections to all seeders.
+				log.Println("Got all pieces")
+				t.DoneDownloadChan <- true
 			}
 			for _, p := range t.peers {
 				if p.have != nil {

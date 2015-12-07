@@ -50,7 +50,7 @@ type TorrentFlags struct {
 }
 
 func RunTorrents(flags *TorrentFlags, torrentFiles []string) (err error) {
-	conChan, listenPort, err := ListenForPeerConnections(flags)
+	listener, conChan, listenPort, err := ListenForPeerConnections(flags)
 	if err != nil {
 		log.Println("Couldn't listen for peers connection: ", err)
 		return
@@ -143,6 +143,10 @@ mainLoop:
 			for _, ts := range torrentSessions {
 				go ts.Quit()
 			}
+			if err = listener.Close(); err != nil {
+				log.Println("Close listener failed: ", err)
+				return
+			}
 		case c := <-conChan:
 			log.Printf("New bt connection for ih %x", c.Infohash)
 			if ts, ok := torrentSessions[c.Infohash]; ok {
@@ -178,7 +182,7 @@ mainLoop:
 }
 
 func RunTorrent(flags *TorrentFlags, torrentFile string, quitChan <-chan os.Signal, statusChan chan<- int) (err error) {
-	conChan, listenPort, err := ListenForPeerConnections(flags)
+	listener, conChan, listenPort, err := ListenForPeerConnections(flags)
 	if err != nil {
 		log.Println("Could not listen for peers connection: ", err)
 		return
@@ -226,12 +230,15 @@ func RunTorrent(flags *TorrentFlags, torrentFile string, quitChan <-chan os.Sign
 			statusChan <- ALLSET
 			return nil
 		case <-quitChan:
-			log.Println("Got quit signal")
+			log.Println("TorrentSession got quit signal")
 			go ts.Quit()
+			if err = listener.Close(); err != nil {
+				log.Println("Close listener failed: ", err)
+				return
+			}
 		case <-ts.DoneDownloadChan:
 			//report to the hub that file is downloaded
 			statusChan <- DOWNLOADED
-			log.Println("finish file download")
 		case c := <-conChan:
 			go ts.AcceptNewPeer(c)
 		case dhtPeers := <-dhtNode.PeersRequestResults:

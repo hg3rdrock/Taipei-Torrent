@@ -21,8 +21,8 @@ type BtConn struct {
 // listenForPeerConnections listens on a TCP port for incoming connections and
 // demuxes them to the appropriate active torrentSession based on the InfoHash
 // in the header.
-func ListenForPeerConnections(flags *TorrentFlags) (conChan chan *BtConn, listenPort int, err error) {
-	listener, listenPort, err := CreateListener(flags)
+func ListenForPeerConnections(flags *TorrentFlags) (listener net.Listener, conChan chan *BtConn, listenPort int, err error) {
+	listener, listenPort, err = CreateListener(flags)
 	if err != nil {
 		return
 	}
@@ -38,7 +38,7 @@ func ListenForPeerConnections(flags *TorrentFlags) (conChan chan *BtConn, listen
 			conn, err := listener.Accept()
 			if err != nil {
 				log.Println("Listener accept failed:", err)
-				continue
+				return
 			}
 			header, err := readHeader(conn)
 			if err != nil {
