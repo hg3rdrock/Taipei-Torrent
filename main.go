@@ -184,7 +184,7 @@ func usage() {
 
 func startTracker(addr string, torrentFiles []string) (err error) {
 	t := tracker.NewTracker()
-	// TODO(jackpal) Allow caller to choose port number
+	// TODO Allow caller to choose port number
 	t.Addr = addr
 	dial, err := dialerFromFlags()
 	if err != nil {
