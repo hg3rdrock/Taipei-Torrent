@@ -301,6 +301,11 @@ func (t *TorrentSession) load() (err error) {
 	t.Session.Left = left
 
 	log.Println("[", t.M.Info.Name, "] Good pieces:", t.goodPieces, "Bad pieces:", bad, "Bytes left:", left)
+	if bad == 0 {
+		go func() {
+			t.DoneDownloadChan <- true
+		}()
+	}
 
 	// Enlarge any existing peers piece maps
 	for _, p := range t.peers {
